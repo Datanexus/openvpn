@@ -1,0 +1,9 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+---
+application: openvpn
+openvpn_user: openvpn
+openvpn_group: openvpn
+openvpn_major_version: 2
+openvpn_minor_version: 4
+openvpn_rev_version: 6
+openvpn_version: "{{ openvpn_major_version }}.{{ openvpn_minor_version }}.{{ openvpn_rev_version }}"
