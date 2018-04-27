@@ -1,0 +1,98 @@
+#!/usr/bin/env ansible-playbook
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# main routine for provisioning openvpn
+---
+- name: OPENVPN OVERLAY | gathering {{ cloud }} inventory
+  tags:
+    - openvpn
+  hosts: localhost
+  vars_files:
+    - vars/openvpn.yml
+  gather_facts: no
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+      
+    - include_role:
+        name: aws
+        tasks_from: discover-vm
+      when: cloud == 'aws'
+      
+    - include_role:
+        name: azure
+        tasks_from: discover-vm
+      when: cloud == 'azure'
+
+- name: POSTGRESQL OVERLAY | applying {{ cloud }} security rules
+  tags:
+    - openvpn
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+
+    - include_role:
+        name: aws
+        tasks_from: apply-securitygroup
+      when: cloud == 'aws'
+
+    - include_role:
+        name: azure
+        tasks_from: apply-securitygroup
+      when: cloud == 'azure'
+      
+- name: OPENVPN OVERLAY | installing base openvpn application
+  tags:
+    - openvpn
+  hosts: openvpn
+  vars_files:
+    - vars/openvpn.yml
+  gather_facts: yes
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
+
+    - include_role:
+        name: openvpn
+        
+# - name: OPENVPN OVERLAY | applying {{ cloud }} security groups
+#   tags:
+#     - openvpn
+#   hosts: localhost
+#   vars_files:
+#     - vars/openvpn.yml
+#   gather_facts: no
+#   tasks:
+#     - include_vars: "{{ configuration }}"
+#       when: configuration is defined
+#
+#     - include_role:
+#         name: aws
+#         tasks_from: apply-securitygroup
+#       when: cloud == 'aws'
+    
+    # azure security groups are applied on instance boot
+      
+
+    
+# this is a separate step because ansible needs to gather facts on a fully configured base system
+# - name: OPENVPN OVERLAY | completing OS configuration
+#   hosts: openvpn
+#   tags: openvpn
+#   vars_files:
+#     - vars/openvpn.yml
+#   gather_facts: yes
+#   tasks:
+#     - include_vars: "{{ configuration }}"
+#       when: configuration is defined
+#
+#     - include_role:
+#         name: preflight
+#
+#     - include_role:
+#         name: http-proxy
+#       when: http_proxy is defined
+#
+

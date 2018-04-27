@@ -1,0 +1,23 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# discover Azure inventory
+---
+- import_tasks: discover-resourcegroup.yml
+  
+# for at least the initial release the jumphost will host the vpn
+- name: OPENVPN OVERLAY Azure | restricting to jumphost
+  set_fact: hostapplication=jumphost
+  
+- name: OPENVPN OVERLAY Azure | setting key_path
+  set_fact: key_path="{{ ansible_env.PWD }}"
+  when: key_path is not defined
+
+- name: OPENVPN OVERLAY Azure| discovering {{ application }}
+  azure_rm_publicipaddress_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ hostapplication }}_external_ip"
+  register: found_hosts
+  
+- name: OPENVPN OVERLAY Azure | adding all {{ application }} instances to {{ application }} host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname={{ application }} ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+  with_items: "{{ found_hosts.ansible_facts.azure_publicipaddresses }}"
