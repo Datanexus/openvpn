@@ -9,9 +9,11 @@
     rules:
       - name: AllowOpenVPN
         proto: UDP
+        source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
         destination_port_range: 1194
         access: Allow
-        priority: 102
+        priority: 101
         direction: Inbound
-        source_address_prefix: '*'
   register: sg_openvpn
