@@ -1,7 +1,7 @@
 # (c) Copyright 2016 DataNexus Inc.  All Rights Reserved.
 #
 # install openvpn
----    
+---
 - import_tasks: interface-facts.yml
 
 - name: OPENVPN OVERLAY | checking for {{ application }} package existence
@@ -33,101 +33,299 @@
   
   when: not existing_package.stat.exists
   
-- name: OPENVPN OVERLAY | installing openvpn package
-  become: true
-  package:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - ./rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
-
-
-#
-# - block:
-#   - name: POSTGRESQL OVERLAY | creating default PostgreSQL profile
-#     template:
-#       src: postgres.sh.j2
-#       dest: "{{ postgresql_home_dir }}/.pgsql_profile"
-#       owner: "{{ postgresql_user }}"
-#       group: "{{ postgresql_user }}"
-#       mode: 0644
-#     become: yes
-#
-#   - name: POSTGRESQL OVERLAY | applying postgresql customizations
-#     blockinfile:
-#       name: "/etc/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service"
-#       mode: 0644
-#       create: yes
-#       block: |
-#         .include /lib/systemd/system/postgresql-{{ postgresql_major_version }}.{{ postgresql_minor_version }}.service
-#         [Service]
-#         Environment=PGDATA={{ postgresql_data_dir }}
-#
-#   - name: POSTGRESQL OVERLAY | checking if {{ application }} database is initialized
-#     stat:
-#       path: "{{ postgresql_data_dir }}/PG_VERSION"
-#     register: pgdata_dir_version
-#
-#   - name: initializing {{ postgresql_data_dir }}
-#     command: "{{ postgresql_bin_path }}/postgresql{{ postgresql_major_version }}{{ postgresql_minor_version }}-setup initdb"
-#     when: not pgdata_dir_version.stat.exists
-#
-#   - name: POSTGRESQL OVERLAY | listening on {{ postgresql_interface_ipv4 }}
-#     lineinfile:
-#       dest: "{{ postgresql_config_path }}/postgresql.conf"
-#       regexp: "^#?listen_addresses"
-#       backrefs: yes
-#       line: "listen_addresses = '{{ item }}'\t# what IP address(es) to listen on;"
-#     with_items: "{{ postgresql_interface_ipv4 }}"
-#     notify: restart postgresql
-#
-#   - name: POSTGRESQL OVERLAY | configuring global settings
-#     lineinfile:
-#       dest: "{{ postgresql_config_path }}/postgresql.conf"
-#       regexp: "^#?{{ item.option }}.+$"
-#       line: "{{ item.option }} = '{{ item.value }}'"
-#       state: "{{ item.state | default('present') }}"
-#     with_items: "{{ postgresql_global_config_options }}"
-#     notify: restart postgresql
-#
-#   - name: POSTGRESQL OVERLAY | ensuring {{ application }} unix socket dirs exist
-#     file:
-#       path: "{{ item }}"
-#       state: directory
-#       owner: "{{ postgresql_user }}"
-#       group: "{{ postgresql_group }}"
-#       mode: 02775
-#     with_items: "{{ postgresql_unix_socket_directories }}"
-#
-#   - name: POSTGRESQL OVERLAY | ensuring SE Linux pre-requisite packages are installed
-#     become: true
-#     package:
-#       name: "{{ item }}"
-#       state: present
-#     when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
-#     with_items:
-#       - policycoreutils-python
-#
-#   - name: POSTGRESQL OVERLAY | updating SE Linux enforcing mode
-#     sefcontext:
-#       target: "{{ postgresql_data_dir }}(/.*)?"
-#       setype: postgresql_db_t
-#       state: present
-#       reload: true
-#     when: ansible_selinux.status == "enabled"
-#
-#   # sefcontent does not restore the context, so we need another step
-#   - name: POSTGRESQL OVERLAY | restoring SE Linux security context
-#     command: /sbin/restorecon -R {{ postgresql_data_dir }}
-#     when: ansible_selinux.status == "enabled"
-#
-#   - name: POSTGRESQL OVERLAY | setting listener to trust the data subnet
-#     lineinfile:
-#      dest: "{{ postgresql_config_path }}/pg_hba.conf"
-#      insertafter: "^host    all             all             127.0.0.1/32            ident"
-#      line: "host    all             {{ postgresql_user }}        {{ postgresql_broadcast_interface_ipv4 }}/24          trust"
-#     notify: restart postgresql
-#
-#   - name: POSTGRESQL OVERLAY | ensuring {{ application }} is started and enabled on boot
-#     systemd: "name={{ postgresql_daemon }} state=started enabled=True"
+# - name: OPENVPN OVERLAY | installing openvpn package
 #   become: true
+#   package:
+#     name: "{{ item }}"
+#     state: present
+#   with_items:
+#     - ./rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
+
+# - name: OPENVPN OVERLAY | removing build litter
+#   file:
+#     path: "/home/{{ user }}/rpmbuild"
+#     state: absent
+
+- include_vars: "{{ certificate }}"
+  when: certificate is defined
+    
+- block:
+  - name: OPENPVN ENCRYPTION OVERLAY | installing JCE packages for encryption
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - epel-release-7-9
+      - java-1.8.0-openjdk
+      - java-1.8.0-openjdk-devel
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'RedHat'
+
+  - name: OPENPVN ENCRYPTION OVERLAY | checking existing server keystore
+    stat:
+      path: "/etc/tls/{{ tenant }}/ca"
+    register: ca_dir
+         
+  - name: OPENPVN ENCRYPTION OVERLAY | creating certificate authority directory
+    file:
+      path: "/etc/tls/{{ tenant }}/ca"
+      state: directory
+      mode: 0700
+    when: not ca_dir.stat.exists
+  
+  # we do this again so the ca_dir variable picks up the file creation
+  - name: OPENPVN ENCRYPTION OVERLAY | verifying existing server keystore
+    stat:
+      path: "/etc/tls/{{ tenant }}/ca"
+    register: ca_dir
+    
+  - name: OPENPVN ENCRYPTION OVERLAY | creating certificate directories for applications
+    file:
+      path: "/etc/tls/{{ tenant }}/{{ item }}"
+      state: directory
+      mode: 0700
+    with_items:
+      - "{{ application }}"
+
+  - name: OPENVPN ENCRYPTION OVERLAY | creating default SSL server.cnf
+    template:
+      src: server.cnf.j2
+      dest: "/etc/tls/{{ tenant }}/server.cnf"
+      owner: root
+      group: root
+      mode: 0600
+    become: yes
+  
+  - name: OPENVPN ENCRYPTION OVERLAY | creating default SSL client.cnf
+    template:
+      src: client.cnf.j2
+      dest: "/etc/tls/{{ tenant }}/client.cnf"
+      owner: root
+      group: root
+      mode: 0600
+    become: yes
+    
+  - name: OPENPVN ENCRYPTION OVERLAY | generating {{ tenant }} public certificate and key
+    command: /usr/bin/openssl req -nodes -x509 -newkey rsa:4096 -keyout {{ ca_dir.stat.path }}/ca-key.pem -out {{ ca_dir.stat.path }}/ca-cert.pem -subj /C={{ certs.C }}/L={{ certs.L }}/O={{ certs.O }}/OU={{ certs.OU }}/CN={{ certs.CN }} -days {{ duration }}
+    when: ca_dir.stat.exists 
+
+  - name:  OPENPVN ENCRYPTION OVERLAY | changing permissions on ca-key.pem
+    file:
+      path: "{{ ca_dir.stat.path }}/ca-key.pem"
+      mode: 0600
+    when: ca_dir.stat.exists 
+
+  - name:  OPENPVN ENCRYPTION OVERLAY | changing permissions on ca-cert.pem
+    file:
+      path: "{{ ca_dir.stat.path }}/ca-cert.pem"
+      mode: 0600
+    when: ca_dir.stat.exists
+  become: true
+
+- name: OPENPVN CREDENTIALS | checking if server credentials exist
+  stat:
+    path: "/etc/tls/{{ tenant }}/{{ application }}/server.key"
+  become: true
+  register: server_key
+
+- block:
+  - name: OPENPVN CREDENTIALS | creating server SSL private key and csr
+    command: /bin/openssl req -nodes -newkey rsa:2048 -keyout /etc/tls/{{ tenant }}/{{ application }}/server.key -out /etc/tls/{{ tenant }}/{{ application }}/server.csr -subj /C={{ certs.C }}/ST={{ certs.ST }}/L={{ certs.L }}/O={{ certs.O }}/CN={{ certs.CN }}
+
+  - name: OPENPVN CREDENTIALS | signing server private key and writing certificate
+    command: /bin/openssl x509 -req -in /etc/tls/{{ tenant }}/{{ application }}/server.csr -extfile /etc/tls/{{ tenant }}/server.cnf -CA /etc/tls/{{ tenant }}/ca/ca-cert.pem -CAkey /etc/tls/{{ tenant }}/ca/ca-key.pem -out /etc/tls/{{ tenant }}/{{ application }}/server.crt -CAcreateserial
+#
+  - name: OPENPVN CREDENTIALS | setting client key permissions
+    file:
+      path: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
+      owner: root
+      group: root
+      mode: 0600
+    with_items:
+      - server.key
+      - server.crt
+
+  - name: OPENPVN CREDENTIALS | removing csr
+    file:
+      path: /etc/tls/{{ tenant }}/{{ application }}/server.csr
+      state: absent
+
+  become: true
+  when: not server_key.stat.exists
+  
+
+- name: OPENPVN CREDENTIALS | checking if client credentials exist
+  stat:
+    path: "/etc/tls/{{ tenant }}/{{ application }}/client.key"
+  become: true
+  register: client_key
+
+- block:
+  - name: OPENPVN CREDENTIALS | creating client SSL private key and csr
+    command: /bin/openssl req -nodes -newkey rsa:2048 -keyout /etc/tls/{{ tenant }}/{{ application }}/client.key -out /etc/tls/{{ tenant }}/{{ application }}/client.csr -subj /C={{ certs.C }}/ST={{ certs.ST }}/L={{ certs.L }}/O={{ certs.O }}/CN={{ certs.CN }}
+
+  - name: OPENPVN CREDENTIALS | signing client private key and writing certificate
+    command: /bin/openssl x509 -req -in /etc/tls/{{ tenant }}/{{ application }}/client.csr -extfile /etc/tls/{{ tenant }}/client.cnf -CA /etc/tls/{{ tenant }}/ca/ca-cert.pem -CAkey /etc/tls/{{ tenant }}/ca/ca-key.pem -out /etc/tls/{{ tenant }}/{{ application }}/client.crt -CAcreateserial
+#
+  - name: OPENPVN CREDENTIALS | setting client key permissions
+    file:
+      path: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
+      owner: root
+      group: root
+      mode: 0600
+    with_items:
+      - client.key
+      - client.crt
+
+  - name: OPENPVN CREDENTIALS | removing csr
+    file:
+      path: /etc/tls/{{ tenant }}/{{ application }}/client.csr
+      state: absent
+
+  become: true
+  when: not client_key.stat.exists
+
+- block:
+  - name: OPENPVN CREDENTIALS | fetching root certificates to {{ key_path | default(playbook_dir) }}
+    fetch:
+      src: "/etc/tls/{{ tenant }}/ca/{{ item }}"
+      dest: "{{ key_path | default(playbook_dir) }}/{{ item }}"
+      flat: yes
+    with_items:
+      - ca-cert.pem
+      - ca-key.pem
+
+  become: true
+
+- name: OPENVPN OVERLAY | copying sample server config to /etc/openvpn
+  command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/server.conf /etc/openvpn
+  become: true
+
+- name: OPENVPN OVERLAY | copying sample config files to /etc/openvpn
+  command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/client.conf /home/{{ user }}/{{ tenant }}-client.conf
+  become: true
+
+- name: OPENVPN OVERLAY | generating 2048 bit diffie helman keys (this may take some time)
+  command: /bin/openssl dhparam -out /etc/tls/{{ tenant }}/{{ application }}/dh2048.pem 2048
+  become: true
+  
+- name: OPENVPN OVERLAY | generating openvpn secret client key
+  command: /sbin/openvpn --genkey --secret /etc/tls/{{ tenant }}/{{ application }}/ta.key
+  become: true
+  
+- name: OPENPVN CREDENTIALS | fetching client certificates to {{ key_path }}
+  fetch:
+    src: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ item }}"
+    flat: yes
+  become: yes
+  with_items:
+    - client.crt
+    - client.key
+    - ta.key
+
+- block:
+  - name: POSTGRESQL OVERLAY | configuring open server certificate authority
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^ca ca.crt"
+      line: "ca /etc/tls/{{ tenant }}/ca/ca-cert.pem"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+
+  - name: POSTGRESQL OVERLAY | configuring openvpn server certificate
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^cert server.crt"
+      line: "cert /etc/tls/datanexus/openvpn/server.crt"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+
+  - name: POSTGRESQL OVERLAY | configuring openvpn server key
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^key server.key  # This file should be kept secret"
+      line: "key /etc/tls/{{ tenant }}/openvpn/server.key  # This file should be kept secret"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+  
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring open client certificate authority
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^ca ca.crt"
+      line: "ca {{ key_path | default(playbook_dir) }}/ca-cert.pem"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - "/home/{{ user }}/{{ tenant }}-client.conf"
+
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client certificate
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^cert client.crt"
+      line: "cert {{ key_path | default(playbook_dir) }}/client.crt"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - "/home/{{ user }}/{{ tenant }}-client.conf"
+
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client key
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^key client.key"
+      line: "key {{ key_path | default(playbook_dir) }}/client.key"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      
+  
+  - name: POSTGRESQL OVERLAY | configuring diffie helman parameters
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^dh dh2048.pem"
+      line: "dh /etc/tls/{{ tenant }}/{{ application }}/dh2048.pem"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+  
+  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^tls-auth ta.key 0 # This file is secret"
+      line: "tls-auth /etc/tls/{{ tenant }}/{{ application}}/ta.key 0 # This file is secret"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+
+  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^tls-auth ta.key 1"
+      line: "tls-auth {{ key_path | default(playbook_dir) }}/ta.key 1"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - "/home/{{ user }}/{{ tenant }}-client.conf"
+  
+  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: "^remote my-server-1 1194"
+      line: "remote {{ groups[application].0 }} 1194"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - "/home/{{ user }}/{{ tenant }}-client.conf"
+        
+  become: yes
+  
+- name: OPENPVN CREDENTIALS | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
+  fetch:
+    src: "/home/{{ user }}/{{ tenant }}-client.conf"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-client.conf"
+    flat: yes
+  become: yes
+    
+- name: OPENPVN CREDENTIALS | enabling and starting openvpn service
+  service:
+    name: openvpn
+    enabled: yes
+    state: started

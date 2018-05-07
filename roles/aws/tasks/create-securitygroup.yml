@@ -1,21 +1,27 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
-# create AWS postgresql security group rules
+# create AWS openvpn security group rules
 ---
-- name: POSTGRESQL OVERLAY | creating postgresql security group
+# this rule overwrites, not appends, the default rule, so we need to include SSH access
+- name: OPENVPN OVERLAY AWS | creating openvpn security group
   local_action:
     module: ec2_group
-    name: "dnsg_{{ project }}_postgresql_public_internal"
-    description: "postgresql ingress and unrestricted egress rules (ansible)"
+    name: "dnsg_{{ project }}_openvpn_public_external"
+    description: "openpvn ingress and unrestricted egress rules (ansible)"
     vpc_id: "{{ specified_vpc.vpcs.0.id }}"
     region: "{{ region }}"
     rules:
       - proto: tcp
-        from_port: 5432
-        to_port: 5432
-        cidr_ip: "{{ external_subnet }}"
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+        # "{{ external_subnet }}"
+      - proto: udp
+        from_port: 1194
+        to_port: 1194
+        cidr_ip: 0.0.0.0/0
     rules_egress:
       # Allow all outbound
       - proto: all
         cidr_ip: 0.0.0.0/0
-  register: sg_postgresql
+  register: sg_openvpn

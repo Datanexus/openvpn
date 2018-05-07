@@ -17,7 +17,7 @@
     module: ec2_vpc_net_facts
     region: "{{ region }}"
     filters:
-      cidr_block: "{{ cidr_block }}"
+      cidr-block: "{{ cidr_block }}"
   register: specified_vpc_by_cidr
   when:
     - cidr_block is defined
@@ -41,7 +41,7 @@
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
     filters:
-      cidr_block: "{{ internal_subnet }}"
+      cidr-block: "{{ internal_subnet }}"
   register: internal_subnet_by_cidr
   when:
     - internal_subnet is defined
@@ -65,7 +65,7 @@
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
     filters:
-      cidr_block: "{{ external_subnet }}"
+      cidr-block: "{{ external_subnet }}"
   register: external_subnet_by_cidr
   when:
     - external_subnet is defined
@@ -89,7 +89,7 @@
     module: ec2_vpc_subnet_facts
     region: "{{ region }}"
     filters:
-      cidr_block: "{{ metrics_subnet }}"
+      cidr-block: "{{ metrics_subnet }}"
   register: metrics_subnet_by_cidr
   when:
     - metrics_subnet is defined

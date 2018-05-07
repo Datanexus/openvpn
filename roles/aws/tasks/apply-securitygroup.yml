@@ -2,7 +2,7 @@
 #
 # Apply AWS postgresql security group rules
 ---
-- name: POSTGRESQL OVERLAY | disocvering {{ application }} instances
+- name: OPENVPN OVERLAY AWS | discovering {{ hostapplication }} instances
   ec2_instance_facts:
     region: "{{ region }}"
     filters:
@@ -10,23 +10,23 @@
       "tag:Tenant": "{{ tenant }}"
       "tag:Project": "{{ project }}"
       "tag:Domain": "{{ domain }}"
-      "tag:Application": "{{ application }}"
-      "tag:Cluster": "{{ cluster | default ('a') }}"
+      "tag:Application": "{{ hostapplication }}"
+      "tag:Cluster": "{{ cluster | default ('none') }}"
       "tag:Dataflow": "{{ dataflow | default ('none') }}"
-  register: all_postgresql_nodes
+  register: all_openvpn_nodes
   when: cloud == 'aws'
 
 # construct list of all interfaces attached to postgresql nodes
 - set_fact:
-    postgresql_interfaces: "{{ all_postgresql_nodes.instances | map(attribute='network_interfaces') | list }}"
-  when: all_postgresql_nodes.instances | length > 0
+    openvpn_interfaces: "{{ all_openvpn_nodes.instances | map(attribute='network_interfaces') | list }}"
+  when: all_openvpn_nodes.instances | length > 0
   
 # apply postgresql rule
-- name: POSTGRESQL OVERLAY | applying {{ application }} security rules to interface 1
+- name: OPENVPN OVERLAY AWS | applying {{ application }} security rules to interface 0
   ec2_eni:
     region: "{{ region }}"
     eni_id: "{{ item.network_interface_id }}"
     security_groups:
-      - "{{ sg_postgresql.group_id }}"
-  with_items: "{{ postgresql_interfaces }}"
-  when: item.attachment.device_index == 1
+      - "{{ sg_openvpn.group_id }}"
+  with_items: "{{ openvpn_interfaces }}"
+  when: item.attachment.device_index == 0
