@@ -7,16 +7,22 @@
   tags:
     - openvpn
   hosts: localhost
+  connection: local
   vars_files:
     - vars/openvpn.yml
-  gather_facts: no
+  gather_facts: yes
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-      
-    - include_role:
-        name: aws
-        tasks_from: discover-vm
+    
+    - block:
+      - include_role:
+             name: aws
+             tasks_from: discover-vpc
+    
+      - include_role:
+          name: aws
+          tasks_from: discover-vm
       when: cloud == 'aws'
       
     - include_role:
@@ -28,14 +34,20 @@
   tags:
     - openvpn
   hosts: localhost
+  connection: local
   gather_facts: no
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
 
-    - include_role:
-        name: aws
-        tasks_from: apply-securitygroup
+    - block:
+      - include_role:
+          name: aws
+          tasks_from: create-securitygroup
+      
+      - include_role:
+          name: aws
+          tasks_from: apply-securitygroup
       when: cloud == 'aws'
 
     - include_role:
@@ -46,7 +58,7 @@
 - name: OPENVPN OVERLAY | installing base openvpn application
   tags:
     - openvpn
-  hosts: openvpn
+  hosts: "{{ application }}"
   vars_files:
     - vars/openvpn.yml
   gather_facts: yes
@@ -54,8 +66,10 @@
     - include_vars: "{{ configuration }}"
       when: configuration is defined
 
+    # would change this for making every jumphost an openvpn server
     - include_role:
         name: openvpn
+      run_once: true
         
 # - name: OPENVPN OVERLAY | applying {{ cloud }} security groups
 #   tags:
