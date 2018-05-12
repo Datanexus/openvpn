@@ -2,6 +2,9 @@
 #
 # Apply AWS postgresql security group rules
 ---
+- name: OPENVPN OVERLAY AWS | restricting to jumphost
+  set_fact: hostapplication=jumphost
+    
 - name: OPENVPN OVERLAY AWS | discovering {{ hostapplication }} instances
   ec2_instance_facts:
     region: "{{ region }}"
@@ -16,12 +19,12 @@
   register: all_openvpn_nodes
   when: cloud == 'aws'
 
-# construct list of all interfaces attached to postgresql nodes
+# construct list of all interfaces attached to jumphost nodes
 - set_fact:
     openvpn_interfaces: "{{ all_openvpn_nodes.instances | map(attribute='network_interfaces') | list }}"
   when: all_openvpn_nodes.instances | length > 0
   
-# apply postgresql rule
+# apply openvpn rule
 - name: OPENVPN OVERLAY AWS | applying {{ application }} security rules to interface 0
   ec2_eni:
     region: "{{ region }}"

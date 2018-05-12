@@ -43,8 +43,10 @@
     - block:
       - include_role:
           name: aws
-          tasks_from: create-securitygroup
-      
+          tasks_from: modify-existing-securitygroup
+        vars:
+          block: '0.0.0.0/0'
+
       - include_role:
           name: aws
           tasks_from: apply-securitygroup
@@ -65,48 +67,46 @@
   tasks:
     - include_vars: "{{ configuration }}"
       when: configuration is defined
-
+      
     # would change this for making every jumphost an openvpn server
     - include_role:
         name: openvpn
       run_once: true
+
+    - block:
+      - include_role:
+          name: aws
+          tasks_from: discover-vpc
         
-# - name: OPENVPN OVERLAY | applying {{ cloud }} security groups
-#   tags:
-#     - openvpn
-#   hosts: localhost
-#   vars_files:
-#     - vars/openvpn.yml
-#   gather_facts: no
-#   tasks:
-#     - include_vars: "{{ configuration }}"
-#       when: configuration is defined
-#
-#     - include_role:
-#         name: aws
-#         tasks_from: apply-securitygroup
-#       when: cloud == 'aws'
+      - include_role:
+          name: aws
+          tasks_from: modify-existing-securitygroup
+        vars:
+          block: "{{ external_subnet }}"
+      when: cloud == 'aws'
     
-    # azure security groups are applied on instance boot
+    - include_role:
+        name: azure
+        tasks_from: apply-securitygroup
+      when: cloud == 'azure'
       
-
+- name: OPENVPN OVERLAY | reconfiguring ssh for platform access via vpn
+  tags:
+    - openvpn
+  hosts: localhost
+  connection: local
+  vars_files:
+    - vars/openvpn.yml
+  gather_facts: yes
+  tasks:
+    - include_vars: "{{ configuration }}"
+      when: configuration is defined
     
-# this is a separate step because ansible needs to gather facts on a fully configured base system
-# - name: OPENVPN OVERLAY | completing OS configuration
-#   hosts: openvpn
-#   tags: openvpn
-#   vars_files:
-#     - vars/openvpn.yml
-#   gather_facts: yes
-#   tasks:
-#     - include_vars: "{{ configuration }}"
-#       when: configuration is defined
-#
-#     - include_role:
-#         name: preflight
-#
-#     - include_role:
-#         name: http-proxy
-#       when: http_proxy is defined
-#
-
+    - name: OPENVPN ENCRYPTION OVERLAY | reconfiguring ssh for platform access via vpn
+      lineinfile:
+        dest: "{{ item }}"
+        regexp: "    Hostname {{ groups['openvpn'].0 }}"
+        line: "    Hostname {{ groups['openvpn_private'].0 }}"
+        state: "{{ item.state | default('present') }}"
+      with_items:
+        - "{{ ansible_env.HOME }}/.ssh/config"

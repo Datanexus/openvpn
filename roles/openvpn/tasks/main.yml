@@ -3,7 +3,7 @@
 # install openvpn
 ---
 - import_tasks: interface-facts.yml
-
+  
 - name: OPENVPN OVERLAY | checking for {{ application }} package existence
   stat: path="/tmp/openvpn-{{ openvpn_version }}.tar.gz"
   register: existing_package
@@ -33,18 +33,26 @@
   
   when: not existing_package.stat.exists
   
-# - name: OPENVPN OVERLAY | installing openvpn package
-#   become: true
-#   package:
-#     name: "{{ item }}"
-#     state: present
-#   with_items:
-#     - ./rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
+- name: OPENVPN OVERLAY | checking for {{ application }} package existence
+  stat: path="/home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm"
+  register: build_package
+    
+- block:
+  
+  - name: OPENVPN OVERLAY | installing openvpn package
+    package:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - /home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
 
-# - name: OPENVPN OVERLAY | removing build litter
-#   file:
-#     path: "/home/{{ user }}/rpmbuild"
-#     state: absent
+  - name: OPENVPN OVERLAY | removing build litter
+    file:
+      path: "/home/{{ user }}/rpmbuild"
+      state: absent
+
+  become: true
+  when: build_package.stat.exists 
 
 - include_vars: "{{ certificate }}"
   when: certificate is defined
@@ -133,7 +141,7 @@
 
   - name: OPENPVN CREDENTIALS | signing server private key and writing certificate
     command: /bin/openssl x509 -req -in /etc/tls/{{ tenant }}/{{ application }}/server.csr -extfile /etc/tls/{{ tenant }}/server.cnf -CA /etc/tls/{{ tenant }}/ca/ca-cert.pem -CAkey /etc/tls/{{ tenant }}/ca/ca-key.pem -out /etc/tls/{{ tenant }}/{{ application }}/server.crt -CAcreateserial
-#
+
   - name: OPENPVN CREDENTIALS | setting client key permissions
     file:
       path: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
@@ -152,7 +160,6 @@
   become: true
   when: not server_key.stat.exists
   
-
 - name: OPENPVN CREDENTIALS | checking if client credentials exist
   stat:
     path: "/etc/tls/{{ tenant }}/{{ application }}/client.key"
@@ -242,7 +249,7 @@
     with_items:
       - /etc/openvpn/server.conf
 
-  - name: POSTGRESQL OVERLAY | configuring openvpn server key
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn server key
     lineinfile:
       dest: "{{ item }}"
       regexp: "^key server.key  # This file should be kept secret"
@@ -278,8 +285,7 @@
     with_items:
       - "/home/{{ user }}/{{ tenant }}-client.conf"
       
-  
-  - name: POSTGRESQL OVERLAY | configuring diffie helman parameters
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring diffie helman parameters
     lineinfile:
       dest: "{{ item }}"
       regexp: "^dh dh2048.pem"
@@ -288,7 +294,7 @@
     with_items:
       - /etc/openvpn/server.conf
   
-  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
     lineinfile:
       dest: "{{ item }}"
       regexp: "^tls-auth ta.key 0 # This file is secret"
@@ -297,7 +303,7 @@
     with_items:
       - /etc/openvpn/server.conf
 
-  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
     lineinfile:
       dest: "{{ item }}"
       regexp: "^tls-auth ta.key 1"
@@ -306,7 +312,7 @@
     with_items:
       - "/home/{{ user }}/{{ tenant }}-client.conf"
   
-  - name: POSTGRESQL OVERLAY | configuring TLS authentication
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
     lineinfile:
       dest: "{{ item }}"
       regexp: "^remote my-server-1 1194"
@@ -314,7 +320,25 @@
       state: "{{ item.state | default('present') }}"
     with_items:
       - "/home/{{ user }}/{{ tenant }}-client.conf"
-        
+  
+  - name: OPENVPN OVERLAY | configuring client routing
+    lineinfile:
+      dest: "{{ item }}"
+      regexp: '^;push "route 192.168.10.0 255.255.255.0"'
+      line: push "route {{ external_subnet.split('/')[0] }} 255.255.255.0"
+      state: "{{ item.state | default('present') }}"
+    with_items:
+      - /etc/openvpn/server.conf
+  
+  - name: OPENVPN OVERLAY | enabling ip forwarding
+    lineinfile:
+      path: /etc/sysctl.conf
+      regexp: '^net.ipv4.ip_forward'
+      line: net.ipv4.ip_forward = 1
+
+  - name: OPENVPN OVERLAY | applying changes to runtime
+    command: /usr/sbin/sysctl -p
+         
   become: yes
   
 - name: OPENPVN CREDENTIALS | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
@@ -329,3 +353,4 @@
     name: openvpn
     enabled: yes
     state: started
+  become: yes
