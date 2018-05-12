@@ -231,7 +231,7 @@
     - ta.key
 
 - block:
-  - name: POSTGRESQL OVERLAY | configuring open server certificate authority
+  - name: OPENVPN OVERLAY | configuring open server certificate authority
     lineinfile:
       dest: "{{ item }}"
       regexp: "^ca ca.crt"
@@ -240,7 +240,7 @@
     with_items:
       - /etc/openvpn/server.conf
 
-  - name: POSTGRESQL OVERLAY | configuring openvpn server certificate
+  - name: OPENVPN OVERLAY | configuring openvpn server certificate
     lineinfile:
       dest: "{{ item }}"
       regexp: "^cert server.crt"
@@ -341,14 +341,14 @@
          
   become: yes
   
-- name: OPENPVN CREDENTIALS | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
+- name: OPENPVN OVERLAY | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
   fetch:
     src: "/home/{{ user }}/{{ tenant }}-client.conf"
     dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-client.conf"
     flat: yes
   become: yes
     
-- name: OPENPVN CREDENTIALS | enabling and starting openvpn service
+- name: OPENPVN OVERLAY | enabling and starting openvpn service
   service:
     name: openvpn
     enabled: yes
