@@ -1,0 +1,14 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# SSL certificate configuration variables
+---
+duration: DAYS
+storepass: PASSWORD
+keypass: PASSWORD
+certs:
+  CN: COMMON NAME
+  OU: ORGINAZATIONAL UNIT
+  O: ORGANIZATION
+  ST: STATE
+  L: LOCALITY
+  C: COUNTRY
