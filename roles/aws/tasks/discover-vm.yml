@@ -26,3 +26,11 @@
     - cloud == 'aws'
     - openvpn_instances is defined
     - openvpn_instances.instances|length > 0
+
+- name: OPENVPN OVERLAY AWS | building {{ application }} host group
+  add_host: hostname="{{ item }}" groupname="{{ application }}_private" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path | default("{{ playbook_dir }}") }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+  with_items: "{{ openvpn_instances.instances | map (attribute='private_ip_address') | list }}"
+  when:
+    - cloud == 'aws'
+    - openvpn_instances is defined
+    - openvpn_instances.instances|length > 0

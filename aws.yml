@@ -1,0 +1,18 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# example AWS instance
+---
+cloud: aws  
+tenant: TENANT
+project: PROJECT
+domain: DOMAIN
+application: openvpn
+region: REGION
+zone: ZONE
+user: USER
+image: IMAGE
+type: TYPE
+root_volume: SIZE
+cidr_block: CIDR BLOCK
+internal_subnet: SUBNET
+external_subnet: SUBNET

@@ -7,3 +7,8 @@ ansible.log
 *.gz
 # any OSP host files
 *.hostfile
+# VPN keys
+datanexus-client.conf
+client.crt
+client.key
+ta.key
