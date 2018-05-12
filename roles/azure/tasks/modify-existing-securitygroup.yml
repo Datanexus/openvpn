@@ -1,0 +1,38 @@
+# (c) 2016 DataNexus Inc.  All Rights Reserved.
+#
+# create Azure openvpn security group rules
+---
+- name: OPENVPN OVERLAY AZURE | updating dnsg_{{ project }}_ssh_public_external rules for OpenVPN
+  azure_rm_securitygroup:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "dnsg_{{ project }}_ssh_public_external"
+    purge_rules: yes
+    rules:
+      - name: DenyAll
+        protocol: '*'
+        source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: '*'
+        destination_port_range: '*'
+        access: Deny
+        direction: Inbound
+        priority: 200
+      - name: AllowOpenVPN
+        protocol: Udp
+        source_address_prefix: '*'
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        destination_port_range: 1194
+        access: Allow
+        priority: 101
+        direction: Inbound
+      - name: AllowSSH
+        protocol: Tcp
+        source_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        source_port_range: '*'
+        destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
+        destination_port_range: 22
+        access: Allow
+        priority: 100
+        direction: Inbound
+  register: sg_ssh_private

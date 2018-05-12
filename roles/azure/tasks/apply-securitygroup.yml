@@ -8,7 +8,7 @@
     name: "dnsg_{{ project }}_ssh_public_external"
     rules:
       - name: AllowOpenVPN
-        proto: UDP
+        protocol: Udp
         source_address_prefix: '*'
         source_port_range: '*'
         destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"

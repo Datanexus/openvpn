@@ -2,28 +2,28 @@
 #
 # discover Azure resource groups, virtual networks, and subnets
 ---
-- name: POSTGRESQL OVERLAY | retrieving resource group by name
+- name: OPENVPN OVERLAY | retrieving resource group by name
   azure_rm_resourcegroup_facts:
     name: "{{ project }}_{{ domain }}"
   register: resourcegroup_by_name
   when: project is defined and domain is defined
 
-- name: POSTGRESQL OVERLAY | setting vpc facts
+- name: OPENVPN OVERLAY | setting virtual network facts
   set_fact:
     specified_resourcegroup: "{{ resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 }}"
   when: resourcegroup_by_name.ansible_facts.azure_resourcegroups.0 is defined
 
-- name: POSTGRESQL OVERLAY | retrieving facts for {{ project }}_{{ domain }} virtual network
+- name: OPENVPN OVERLAY | retrieving facts for {{ project }}_{{ domain }} virtual network
   azure_rm_virtualnetwork_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
     name: "{{ project }}_{{ domain }}_vnet"
   register: virtualnetwork_by_name
   when: project is defined and domain is defined
 
-- name: POSTGRESQL OVERLAY | setting internal private subnet
+- name: OPENVPN OVERLAY | setting internal private subnet
   set_fact:
     internal_private_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.0 }}"
 
-- name: POSTGRESQL OVERLAY | setting internal public subnet
+- name: OPENVPN OVERLAY | setting internal public subnet
   set_fact:
     internal_public_subnet_result: "{{ virtualnetwork_by_name.ansible_facts.azure_virtualnetworks.0.properties.subnets.1 }}"
