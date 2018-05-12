@@ -9,15 +9,36 @@
   set_fact: hostapplication=jumphost
   
 - name: OPENVPN OVERLAY Azure | setting key_path
-  set_fact: key_path="{{ ansible_env.PWD }}"
+  set_fact: key_path="{{ playbook_dir }}"
   when: key_path is not defined
 
-- name: OPENVPN OVERLAY Azure| discovering {{ application }}
+- name: OPENVPN OVERLAY Azure| discovering {{ hostapplication }}
   azure_rm_publicipaddress_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
     name: "{{ project }}_{{ hostapplication }}_external_ip"
   register: found_hosts
   
-- name: OPENVPN OVERLAY Azure | adding all {{ application }} instances to {{ application }} host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname={{ application }} ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+- name: OPENVPN OVERLAY Azure | adding all {{ hostapplication }} instances to {{ application }} host group
+  add_host: hostname="{{ item.properties.ipAddress }}" groupname="{{ application }}" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
   with_items: "{{ found_hosts.ansible_facts.azure_publicipaddresses }}"
+
+# we need to grab the external public DHCP address to modify the ssh/config at the end
+- name: OPENVPN OVERLAY | discovering {{ hostapplication }}
+  azure_rm_networkinterface_facts:
+    resource_group: "{{ specified_resourcegroup.name }}"
+    name: "{{ project }}_{{ hostapplication }}_external"
+    tags:
+      - Application:{{ hostapplication }}
+      - Role:{{ role | default('none') }}
+      - Tenant:{{ tenant }}
+      - Project:{{ project }}
+      - Cloud:{{ cloud }}
+      - Domain:{{ domain }}
+      - Cluster:{{ cluster | default('none') }}
+      - Dataflow:{{ dataflow | default('none') }}
+  register: found_hosts
+
+- name: OPENVPN OVERLAY | adding all {{ hostapplication }} instances to {{ application }}_private host group
+  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname="{{ application }}_private" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+  with_items: "{{ found_hosts.ansible_facts.azure_networkinterfaces }}"
+  

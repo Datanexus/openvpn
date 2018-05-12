@@ -24,13 +24,18 @@
           name: aws
           tasks_from: discover-vm
       when: cloud == 'aws'
+    
+    - block:
+      - include_role:
+          name: azure
+          tasks_from: discover-resourcegroup
       
-    - include_role:
-        name: azure
-        tasks_from: discover-vm
+      - include_role:
+          name: azure
+          tasks_from: discover-vm
       when: cloud == 'azure'
 
-- name: POSTGRESQL OVERLAY | applying {{ cloud }} security rules
+- name: OPENVPN OVERLAY | applying {{ cloud }} security rules
   tags:
     - openvpn
   hosts: localhost
@@ -72,23 +77,6 @@
     - include_role:
         name: openvpn
       run_once: true
-
-    - block:
-      - include_role:
-          name: aws
-          tasks_from: discover-vpc
-        
-      - include_role:
-          name: aws
-          tasks_from: modify-existing-securitygroup
-        vars:
-          block: "{{ external_subnet }}"
-      when: cloud == 'aws'
-    
-    - include_role:
-        name: azure
-        tasks_from: apply-securitygroup
-      when: cloud == 'azure'
       
 - name: OPENVPN OVERLAY | reconfiguring ssh for platform access via vpn
   tags:
@@ -102,6 +90,28 @@
     - include_vars: "{{ configuration }}"
       when: configuration is defined
     
+    - block:
+      - include_role:
+          name: aws
+          tasks_from: discover-vpc
+        
+      - include_role:
+          name: aws
+          tasks_from: modify-existing-securitygroup
+        vars:
+          block: "{{ external_subnet }}"
+      when: cloud == 'aws'
+    
+    - block:
+      - include_role:
+          name: azure
+          tasks_from: discover-resourcegroup
+        
+      - include_role:
+          name: azure
+          tasks_from: modify-existing-securitygroup
+      when: cloud == 'azure'
+      
     - name: OPENVPN ENCRYPTION OVERLAY | reconfiguring ssh for platform access via vpn
       lineinfile:
         dest: "{{ item }}"

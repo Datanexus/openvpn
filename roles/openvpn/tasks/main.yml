@@ -10,7 +10,6 @@
   
 - block:
   - name: OPENVPN OVERLAY | installing prequisite packages
-    become: true
     package:
       name: "{{ item }}"
       state: present
@@ -21,18 +20,19 @@
       - pam-devel
       # gross - we may eventually want to just host a pre-build RPM because I don't like having compilers on the jumphost
       - gcc
+    become: true
 
   - name: OPENVPN OVERLAY | downloading openvpn-{{ openvpn_version }}.tar.gz
     get_url:
       url: "https://swupdate.openvpn.org/community/releases/openvpn-{{ openvpn_version }}.tar.gz"
       dest: "/tmp/openvpn-{{ openvpn_version }}.tar.gz"
       mode: 0600
-
-  - name: OPENVPN OVERLAY | building openvpn-{{ openvpn_version }}.tar.gz...this may take some time
-    command: "/usr/bin/rpmbuild -tb /tmp/openvpn-{{ openvpn_version }}.tar.gz"
-  
+      
   when: not existing_package.stat.exists
-  
+
+- name: OPENVPN OVERLAY | building openvpn-{{ openvpn_version }}.tar.gz...this may take some time
+  command: "/usr/bin/rpmbuild -tb /tmp/openvpn-{{ openvpn_version }}.tar.gz"
+
 - name: OPENVPN OVERLAY | checking for {{ application }} package existence
   stat: path="/home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm"
   register: build_package
@@ -45,13 +45,16 @@
       state: present
     with_items:
       - /home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
-
+    become: true
+    
   - name: OPENVPN OVERLAY | removing build litter
     file:
-      path: "/home/{{ user }}/rpmbuild"
+      path: 
       state: absent
+    with_items:
+      - /home/{{ user }}/rpmbuild
+      - /tmp/openvpn-{{ openvpn_version }}.tar.gz
 
-  become: true
   when: build_package.stat.exists 
 
 - include_vars: "{{ certificate }}"
@@ -211,7 +214,7 @@
   command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/client.conf /home/{{ user }}/{{ tenant }}-client.conf
   become: true
 
-- name: OPENVPN OVERLAY | generating 2048 bit diffie helman keys (this may take some time)
+- name: OPENVPN OVERLAY | generating 2048 bit diffie helman keys...this may take some time
   command: /bin/openssl dhparam -out /etc/tls/{{ tenant }}/{{ application }}/dh2048.pem 2048
   become: true
   
@@ -285,7 +288,7 @@
     with_items:
       - "/home/{{ user }}/{{ tenant }}-client.conf"
       
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring diffie helman parameters
+  - name: OPENVPN ENCRYPTION OVERLAY | configuring diffie helman key
     lineinfile:
       dest: "{{ item }}"
       regexp: "^dh dh2048.pem"
