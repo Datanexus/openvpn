@@ -14,6 +14,6 @@
         destination_address_prefix: "{{ internal_public_subnet_result.properties.addressPrefix }}"
         destination_port_range: 1194
         access: Allow
-        priority: 101
+        priority: 102
         direction: Inbound
   register: sg_openvpn

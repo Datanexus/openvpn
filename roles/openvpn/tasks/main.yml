@@ -49,7 +49,7 @@
     
   - name: OPENVPN OVERLAY | removing build litter
     file:
-      path: 
+      path: "{{ item }}"
       state: absent
     with_items:
       - /home/{{ user }}/rpmbuild
@@ -198,11 +198,10 @@
   - name: OPENPVN CREDENTIALS | fetching root certificates to {{ key_path | default(playbook_dir) }}
     fetch:
       src: "/etc/tls/{{ tenant }}/ca/{{ item }}"
-      dest: "{{ key_path | default(playbook_dir) }}/{{ item }}"
+      dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ item }}"
       flat: yes
     with_items:
       - ca-cert.pem
-      - ca-key.pem
 
   become: true
 
@@ -211,7 +210,7 @@
   become: true
 
 - name: OPENVPN OVERLAY | copying sample config files to /etc/openvpn
-  command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/client.conf /home/{{ user }}/{{ tenant }}-client.conf
+  command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/client.conf /home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf
   become: true
 
 - name: OPENVPN OVERLAY | generating 2048 bit diffie helman keys...this may take some time
@@ -225,7 +224,7 @@
 - name: OPENPVN CREDENTIALS | fetching client certificates to {{ key_path }}
   fetch:
     src: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
-    dest: "{{ key_path | default(playbook_dir) }}/{{ item }}"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ item }}"
     flat: yes
   become: yes
   with_items:
@@ -265,30 +264,30 @@
     lineinfile:
       dest: "{{ item }}"
       regexp: "^ca ca.crt"
-      line: "ca {{ key_path | default(playbook_dir) }}/ca-cert.pem"
+      line: "ca {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-ca-cert.pem"
       state: "{{ item.state | default('present') }}"
     with_items:
-      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
 
   - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client certificate
     lineinfile:
       dest: "{{ item }}"
       regexp: "^cert client.crt"
-      line: "cert {{ key_path | default(playbook_dir) }}/client.crt"
+      line: "cert {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.crt"
       state: "{{ item.state | default('present') }}"
     with_items:
-      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
 
   - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client key
     lineinfile:
       dest: "{{ item }}"
       regexp: "^key client.key"
-      line: "key {{ key_path | default(playbook_dir) }}/client.key"
+      line: "key {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.key"
       state: "{{ item.state | default('present') }}"
     with_items:
-      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring diffie helman key
+  - name: OPENVPN ENCRYPTION OVERLAY | generating TLS diffie helman key
     lineinfile:
       dest: "{{ item }}"
       regexp: "^dh dh2048.pem"
@@ -310,10 +309,10 @@
     lineinfile:
       dest: "{{ item }}"
       regexp: "^tls-auth ta.key 1"
-      line: "tls-auth {{ key_path | default(playbook_dir) }}/ta.key 1"
+      line: "tls-auth {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-ta.key 1"
       state: "{{ item.state | default('present') }}"
     with_items:
-      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
   
   - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
     lineinfile:
@@ -322,7 +321,7 @@
       line: "remote {{ groups[application].0 }} 1194"
       state: "{{ item.state | default('present') }}"
     with_items:
-      - "/home/{{ user }}/{{ tenant }}-client.conf"
+      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
   
   - name: OPENVPN OVERLAY | configuring client routing
     lineinfile:
@@ -346,8 +345,8 @@
   
 - name: OPENPVN OVERLAY | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
   fetch:
-    src: "/home/{{ user }}/{{ tenant }}-client.conf"
-    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-client.conf"
+    src: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
     flat: yes
   become: yes
     

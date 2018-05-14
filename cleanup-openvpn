@@ -134,7 +134,9 @@
           name: "{{ item }}"
           state: absent
         with_items:
-          - "dnsg_{{ project }}_ssh_private_external"
+          - "dnsg_{{ project }}_ssh_public_external"
+          - "dnsg_{{ project }}_closed"
+          # these are default Azure security groups
           - "{{ project }}_{{ application }}_external"
           - "{{ project }}_{{ application }}_internal"
       when: cloud == 'azure'
