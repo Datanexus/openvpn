@@ -246,7 +246,7 @@
     lineinfile:
       dest: "{{ item }}"
       regexp: "^cert server.crt"
-      line: "cert /etc/tls/datanexus/openvpn/server.crt"
+      line: "cert /etc/tls/{{ tenant }}/openvpn/server.crt"
       state: "{{ item.state | default('present') }}"
     with_items:
       - /etc/openvpn/server.conf
