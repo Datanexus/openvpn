@@ -30,38 +30,30 @@
       
   when: not existing_package.stat.exists
 
-- name: OPENVPN OVERLAY | building openvpn-{{ openvpn_version }}.tar.gz...this may take some time
-  command: "/usr/bin/rpmbuild -tb /tmp/openvpn-{{ openvpn_version }}.tar.gz"
-
-- name: OPENVPN OVERLAY | checking for {{ application }} package existence
+- name: OPENVPN OVERLAY | checking for {{ application }} RPM existence
   stat: path="/home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm"
   register: build_package
-    
-- block:
   
-  - name: OPENVPN OVERLAY | installing openvpn package
-    package:
-      name: "{{ item }}"
-      state: present
-    with_items:
-      - /home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm
-    become: true
-    
-  - name: OPENVPN OVERLAY | removing build litter
-    file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-      - /home/{{ user }}/rpmbuild
-      - /tmp/openvpn-{{ openvpn_version }}.tar.gz
+- name: OPENVPN OVERLAY | building openvpn-{{ openvpn_version }}.tar.gz...this may take some time
+  command: "/usr/bin/rpmbuild -tb /tmp/openvpn-{{ openvpn_version }}.tar.gz"
+  when: not build_package.stat.exists
 
+- name: OPENVPN OVERLAY | re-checking for {{ application }} RPM existence
+  stat: path="/home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm"
+  register: build_package
+  
+- name: OPENVPN OVERLAY | installing {{ application }} package
+  package:
+    name: "/home/{{ user }}/rpmbuild/RPMS/x86_64/openvpn-{{ openvpn_version }}-1.x86_64.rpm"
+    state: present
+  become: true
   when: build_package.stat.exists 
 
 - include_vars: "{{ certificate }}"
   when: certificate is defined
     
 - block:
-  - name: OPENPVN ENCRYPTION OVERLAY | installing JCE packages for encryption
+  - name: OPENPVN OVERLAY | installing JCE packages for encryption
     package:
       name: "{{ item }}"
       state: present
@@ -76,7 +68,7 @@
       path: "/etc/tls/{{ tenant }}/ca"
     register: ca_dir
          
-  - name: OPENPVN ENCRYPTION OVERLAY | creating certificate authority directory
+  - name: OPENPVN OVERLAY | creating certificate authority directory
     file:
       path: "/etc/tls/{{ tenant }}/ca"
       state: directory
@@ -84,12 +76,12 @@
     when: not ca_dir.stat.exists
   
   # we do this again so the ca_dir variable picks up the file creation
-  - name: OPENPVN ENCRYPTION OVERLAY | verifying existing server keystore
+  - name: OPENPVN OVERLAY | verifying existing server keystore
     stat:
       path: "/etc/tls/{{ tenant }}/ca"
     register: ca_dir
     
-  - name: OPENPVN ENCRYPTION OVERLAY | creating certificate directories for applications
+  - name: OPENPVN OVERLAY | creating certificate directories for applications
     file:
       path: "/etc/tls/{{ tenant }}/{{ item }}"
       state: directory
@@ -97,7 +89,7 @@
     with_items:
       - "{{ application }}"
 
-  - name: OPENVPN ENCRYPTION OVERLAY | creating default SSL server.cnf
+  - name: OPENVPN OVERLAY | creating default SSL server.cnf
     template:
       src: server.cnf.j2
       dest: "/etc/tls/{{ tenant }}/server.cnf"
@@ -106,7 +98,7 @@
       mode: 0600
     become: yes
   
-  - name: OPENVPN ENCRYPTION OVERLAY | creating default SSL client.cnf
+  - name: OPENVPN OVERLAY | creating default SSL client.cnf
     template:
       src: client.cnf.j2
       dest: "/etc/tls/{{ tenant }}/client.cnf"
@@ -115,8 +107,8 @@
       mode: 0600
     become: yes
     
-  - name: OPENPVN ENCRYPTION OVERLAY | generating {{ tenant }} public certificate and key
-    command: /usr/bin/openssl req -nodes -x509 -newkey rsa:4096 -keyout {{ ca_dir.stat.path }}/ca-key.pem -out {{ ca_dir.stat.path }}/ca-cert.pem -subj /C={{ certs.C }}/L={{ certs.L }}/O={{ certs.O }}/OU={{ certs.OU }}/CN={{ certs.CN }} -days {{ duration }}
+  - name: OPENPVN OVERLAY | generating {{ tenant }} public certificate and key
+    command: /usr/bin/openssl req -nodes -x509 -newkey rsa:4096 -keyout {{ ca_dir.stat.path }}/ca-key.pem -out {{ ca_dir.stat.path }}/ca-cert.pem -subj /C={{ certs.C }}/ST={{ certs.ST }}/L={{ certs.L }}/O={{ certs.O }}/OU={{ certs.OU }}/CN={{ certs.CN }} -days {{ duration }}
     when: ca_dir.stat.exists 
 
   - name:  OPENPVN ENCRYPTION OVERLAY | changing permissions on ca-key.pem
@@ -125,27 +117,27 @@
       mode: 0600
     when: ca_dir.stat.exists 
 
-  - name:  OPENPVN ENCRYPTION OVERLAY | changing permissions on ca-cert.pem
+  - name:  OPENPVN OVERLAY | changing permissions on ca-cert.pem
     file:
       path: "{{ ca_dir.stat.path }}/ca-cert.pem"
       mode: 0600
     when: ca_dir.stat.exists
   become: true
 
-- name: OPENPVN CREDENTIALS | checking if server credentials exist
+- name: OPENPVN OVERLAY | checking if server credentials exist
   stat:
     path: "/etc/tls/{{ tenant }}/{{ application }}/server.key"
   become: true
   register: server_key
 
 - block:
-  - name: OPENPVN CREDENTIALS | creating server SSL private key and csr
+  - name: OPENPVN OVERLAY | creating server SSL private key and csr
     command: /bin/openssl req -nodes -newkey rsa:2048 -keyout /etc/tls/{{ tenant }}/{{ application }}/server.key -out /etc/tls/{{ tenant }}/{{ application }}/server.csr -subj /C={{ certs.C }}/ST={{ certs.ST }}/L={{ certs.L }}/O={{ certs.O }}/CN={{ certs.CN }}
 
-  - name: OPENPVN CREDENTIALS | signing server private key and writing certificate
+  - name: OPENPVN OVERLAY | signing server private key and writing certificate
     command: /bin/openssl x509 -req -in /etc/tls/{{ tenant }}/{{ application }}/server.csr -extfile /etc/tls/{{ tenant }}/server.cnf -CA /etc/tls/{{ tenant }}/ca/ca-cert.pem -CAkey /etc/tls/{{ tenant }}/ca/ca-key.pem -out /etc/tls/{{ tenant }}/{{ application }}/server.crt -CAcreateserial
 
-  - name: OPENPVN CREDENTIALS | setting client key permissions
+  - name: OPENPVN OVERLAY | setting client key permissions
     file:
       path: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
       owner: root
@@ -155,7 +147,7 @@
       - server.key
       - server.crt
 
-  - name: OPENPVN CREDENTIALS | removing csr
+  - name: OPENPVN OVERLAY | removing csr
     file:
       path: /etc/tls/{{ tenant }}/{{ application }}/server.csr
       state: absent
@@ -163,20 +155,20 @@
   become: true
   when: not server_key.stat.exists
   
-- name: OPENPVN CREDENTIALS | checking if client credentials exist
+- name: OPENPVN OVERLAY | checking if client credentials exist
   stat:
     path: "/etc/tls/{{ tenant }}/{{ application }}/client.key"
   become: true
   register: client_key
 
 - block:
-  - name: OPENPVN CREDENTIALS | creating client SSL private key and csr
+  - name: OPENPVN OVERLAY | creating client SSL private key and csr
     command: /bin/openssl req -nodes -newkey rsa:2048 -keyout /etc/tls/{{ tenant }}/{{ application }}/client.key -out /etc/tls/{{ tenant }}/{{ application }}/client.csr -subj /C={{ certs.C }}/ST={{ certs.ST }}/L={{ certs.L }}/O={{ certs.O }}/CN={{ certs.CN }}
 
-  - name: OPENPVN CREDENTIALS | signing client private key and writing certificate
+  - name: OPENPVN OVERLAY | signing client private key and writing certificate
     command: /bin/openssl x509 -req -in /etc/tls/{{ tenant }}/{{ application }}/client.csr -extfile /etc/tls/{{ tenant }}/client.cnf -CA /etc/tls/{{ tenant }}/ca/ca-cert.pem -CAkey /etc/tls/{{ tenant }}/ca/ca-key.pem -out /etc/tls/{{ tenant }}/{{ application }}/client.crt -CAcreateserial
-#
-  - name: OPENPVN CREDENTIALS | setting client key permissions
+
+  - name: OPENPVN OVERLAY | setting client key permissions
     file:
       path: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
       owner: root
@@ -186,7 +178,7 @@
       - client.key
       - client.crt
 
-  - name: OPENPVN CREDENTIALS | removing csr
+  - name: OPENPVN OVERLAY | removing csr
     file:
       path: /etc/tls/{{ tenant }}/{{ application }}/client.csr
       state: absent
@@ -194,15 +186,11 @@
   become: true
   when: not client_key.stat.exists
 
-- block:
-  - name: OPENPVN CREDENTIALS | fetching root certificates to {{ key_path | default(playbook_dir) }}
-    fetch:
-      src: "/etc/tls/{{ tenant }}/ca/{{ item }}"
-      dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ item }}"
-      flat: yes
-    with_items:
-      - ca-cert.pem
-
+- name: OPENPVN OVERLAY | fetching root certificates to {{ key_path | default(playbook_dir) }}
+  fetch:
+    src: "/etc/tls/{{ tenant }}/ca/ca-cert.pem"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-ca-cert.pem"
+    flat: yes
   become: true
 
 - name: OPENVPN OVERLAY | copying sample server config to /etc/openvpn
@@ -213,18 +201,30 @@
   command: /bin/cp /usr/share/doc/openvpn-{{ openvpn_version }}/sample/sample-config-files/client.conf /home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf
   become: true
 
+- name: OPENVPN OVERLAY | checking for existing diffie helman key
+  stat: path="/etc/tls/{{ tenant }}/{{ application }}/dh2048.pem"
+  become: true
+  register: dh_key
+  
 - name: OPENVPN OVERLAY | generating 2048 bit diffie helman keys...this may take some time
   command: /bin/openssl dhparam -out /etc/tls/{{ tenant }}/{{ application }}/dh2048.pem 2048
   become: true
+  when: not dh_key.stat.exists
+
+- name: OPENVPN OVERLAY | checking for existing openvpn secret client key
+  stat: path="/etc/tls/{{ tenant }}/{{ application }}/ta.key"
+  become: true
+  register: ta_key
   
 - name: OPENVPN OVERLAY | generating openvpn secret client key
   command: /sbin/openvpn --genkey --secret /etc/tls/{{ tenant }}/{{ application }}/ta.key
   become: true
+  when: not ta_key.stat.exists
   
-- name: OPENPVN CREDENTIALS | fetching client certificates to {{ key_path }}
+- name: OPENPVN OVERLAY | fetching client certificates to {{ key_path }}
   fetch:
     src: "/etc/tls/{{ tenant }}/{{ application }}/{{ item }}"
-    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ item }}"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-{{ item }}"
     flat: yes
   become: yes
   with_items:
@@ -233,110 +233,97 @@
     - ta.key
 
 - block:
-  - name: OPENVPN OVERLAY | configuring open server certificate authority
+  
+  - name: OPENVPN OVERLAY | configuring openvpn server certificate authority
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: "^ca ca.crt"
       line: "ca /etc/tls/{{ tenant }}/ca/ca-cert.pem"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
-
+      state: "{{ state | default('present') }}"
+      
   - name: OPENVPN OVERLAY | configuring openvpn server certificate
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: "^cert server.crt"
       line: "cert /etc/tls/{{ tenant }}/openvpn/server.crt"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
+      state: "{{ state | default('present') }}"
 
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn server key
+  - name: OPENVPN OVERLAY | configuring openvpn server key
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: "^key server.key  # This file should be kept secret"
       line: "key /etc/tls/{{ tenant }}/openvpn/server.key  # This file should be kept secret"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
-  
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring open client certificate authority
+      state: "{{ state | default('present') }}"
+
+  - name: OPENVPN OVERLAY | configuring open client certificate authority
     lineinfile:
-      dest: "{{ item }}"
+      dest: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       regexp: "^ca ca.crt"
-      line: "ca {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-ca-cert.pem"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+      line: "ca {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-ca-cert.pem"
+      state: "{{ state | default('present') }}"
 
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client certificate
+  - name: OPENVPN OVERLAY | configuring openvpn client certificate
     lineinfile:
-      dest: "{{ item }}"
+      dest: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       regexp: "^cert client.crt"
-      line: "cert {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.crt"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+      line: "cert {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-client.crt"
+      state: "{{ state | default('present') }}"
 
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring openvpn client key
+  - name: OPENVPN OVERLAY | configuring openvpn client key
     lineinfile:
-      dest: "{{ item }}"
+      dest: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       regexp: "^key client.key"
-      line: "key {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.key"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+      line: "key {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-client.key"
+      state: "{{ state | default('present') }}"
       
-  - name: OPENVPN ENCRYPTION OVERLAY | generating TLS diffie helman key
+  - name: OPENVPN OVERLAY | configuring TLS diffie helman key
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: "^dh dh2048.pem"
       line: "dh /etc/tls/{{ tenant }}/{{ application }}/dh2048.pem"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
+      state: "{{ state | default('present') }}"
   
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
+  - name: OPENVPN OVERLAY | configuring TLS authentication
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: "^tls-auth ta.key 0 # This file is secret"
-      line: "tls-auth /etc/tls/{{ tenant }}/{{ application}}/ta.key 0 # This file is secret"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
+      line: "tls-auth /etc/tls/{{ tenant }}/{{ application }}/ta.key 0 # This file is secret"
+      state: "{{ state | default('present') }}"
 
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
+  - name: OPENVPN OVERLAY | configuring client TLS authentication
     lineinfile:
-      dest: "{{ item }}"
+      dest: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       regexp: "^tls-auth ta.key 1"
-      line: "tls-auth {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-ta.key 1"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
-  
-  - name: OPENVPN ENCRYPTION OVERLAY | configuring TLS authentication
+      line: "tls-auth {{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-ta.key 1"
+      state: "{{ state | default('present') }}"
+
+  - name: OPENVPN OVERLAY | configuring remote servers
     lineinfile:
-      dest: "{{ item }}"
+      dest: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
       regexp: "^remote my-server-1 1194"
-      line: "remote {{ groups[application].0 }} 1194"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+      line: "remote {{ hostvars[inventory_hostname].inventory_hostname }} 1194"
+      state: "{{ state | default('present') }}"
   
   - name: OPENVPN OVERLAY | configuring client routing
     lineinfile:
-      dest: "{{ item }}"
+      dest: /etc/openvpn/server.conf
       regexp: '^;push "route 192.168.10.0 255.255.255.0"'
       line: push "route {{ external_subnet.split('/')[0] }} 255.255.255.0"
-      state: "{{ item.state | default('present') }}"
-    with_items:
-      - /etc/openvpn/server.conf
+      state: "{{ state | default('present') }}"
   
+  - name: OPENVPN OVERLAY | allowing clients with duplicate certs to connect
+    lineinfile:
+      dest: /etc/openvpn/server.conf
+      regexp: '^;duplicate-cn'
+      line: 'duplicate-cn'
+      state: "{{ state | default('present') }}"
+      
   - name: OPENVPN OVERLAY | enabling ip forwarding
     lineinfile:
       path: /etc/sysctl.conf
       regexp: '^net.ipv4.ip_forward'
       line: net.ipv4.ip_forward = 1
+      state: "{{ state | default('present') }}"
 
   - name: OPENVPN OVERLAY | applying changes to runtime
     command: /usr/sbin/sysctl -p
@@ -346,13 +333,19 @@
 - name: OPENPVN OVERLAY | fetching client openvpn configuration to {{ key_path | default(playbook_dir) }}
   fetch:
     src: "/home/{{ user }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
-    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-client.conf"
+    dest: "{{ key_path | default(playbook_dir) }}/{{ tenant }}-{{ cloud }}-{{ domain }}-{{ hostvars[inventory_hostname].inventory_hostname }}-client.conf"
     flat: yes
   become: yes
-    
+  
 - name: OPENPVN OVERLAY | enabling and starting openvpn service
   service:
     name: openvpn
     enabled: yes
     state: started
   become: yes
+
+- name: OPENVPN OVERLAY | removing build litter
+  file:
+    path: "/home/{{ user }}/rpmbuild"
+    state: absent
+  when: build_package.stat.exists 

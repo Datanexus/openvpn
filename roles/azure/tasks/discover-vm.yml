@@ -5,28 +5,28 @@
 - import_tasks: discover-resourcegroup.yml
   
 # for at least the initial release the jumphost will host the vpn
-- name: OPENVPN OVERLAY Azure | restricting to jumphost
+- name: OPENVPN OVERLAY AZURE | restricting to jumphost
   set_fact: hostapplication=jumphost
   
-- name: OPENVPN OVERLAY Azure | setting key_path
-  set_fact: key_path="{{ playbook_dir }}"
-  when: key_path is not defined
+- name: OPENVPN OVERLAY AZURE | setting key_path
+  set_fact: key_path="{{ key_path | default (playbook_dir) }}"
 
-- name: OPENVPN OVERLAY Azure| discovering {{ hostapplication }}
+- name: OPENVPN OVERLAY AZURE | discovering {{ hostapplication }}
   azure_rm_publicipaddress_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ hostapplication }}_external_ip"
-  register: found_hosts
+    name: "{{ project }}_{{ hostapplication }}_{{ item }}_external_ip"
+  with_sequence: count={{ count | default (1) }}
+  register: found_jumphosts
   
-- name: OPENVPN OVERLAY Azure | adding all {{ hostapplication }} instances to {{ application }} host group
-  add_host: hostname="{{ item.properties.ipAddress }}" groupname="{{ application }}" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
-  with_items: "{{ found_hosts.ansible_facts.azure_publicipaddresses }}"
+- name: OPENVPN OVERLAY AZURE | adding all {{ hostapplication }} instances to {{ application }} host group
+  add_host: hostname="{{ item.ansible_facts.azure_publicipaddresses.0.properties.ipAddress }}" groupname="{{ application }}" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+  with_items: "{{  found_jumphosts.results }}"
 
 # we need to grab the external public DHCP address to modify the ssh/config at the end
 - name: OPENVPN OVERLAY | discovering {{ hostapplication }}
   azure_rm_networkinterface_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ hostapplication }}_external"
+    name: "{{ project }}_{{ hostapplication }}_{{ item }}_external"
     tags:
       - Application:{{ hostapplication }}
       - Role:{{ role | default('none') }}
@@ -36,9 +36,10 @@
       - Domain:{{ domain }}
       - Cluster:{{ cluster | default('none') }}
       - Dataflow:{{ dataflow | default('none') }}
+  with_sequence: count={{ count | default (1) }}
   register: found_hosts
 
 - name: OPENVPN OVERLAY | adding all {{ hostapplication }} instances to {{ application }}_private host group
-  add_host: hostname="{{ item.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname="{{ application }}_private" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
-  with_items: "{{ found_hosts.ansible_facts.azure_networkinterfaces }}"
+  add_host: hostname="{{ item.ansible_facts.azure_networkinterfaces.0.properties.ipConfigurations.0.properties.privateIPAddress }}" groupname="{{ application }}_private" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
+  with_items: "{{ found_hosts.results }}"
   

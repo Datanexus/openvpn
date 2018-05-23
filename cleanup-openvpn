@@ -8,8 +8,12 @@
     - "{{ configuration }}"
   gather_facts: true  
   tasks:
+    - name: OPENVPN CLEANUP  | setting count to {{ count }}
+      set_fact:
+        count: "{{ count | default(1) | int * 1  }}"
+           
     # for at least the initial release the jumphost will host the vpn
-    - name: OPENVPN OVERLAY Azure | restricting to jumphost
+    - name: OPENVPN CLEANUP  | restricting to jumphost
       set_fact: application=jumphost
       
     - block:
@@ -102,33 +106,49 @@
       - name: OPENVPN CLEANUP | removing {{ application }} VM in {{ specified_resourcegroup.name }}
         azure_rm_virtualmachine:
           resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
+          name: "{{ project }}-{{ application }}-{{ item }}"
           state: absent
           remove_on_absent:
               - network_interfaces
               - virtual_storage
-        with_items:
-          - "{{ project }}-{{ application }}"
-          
-      - name: OPENVPN CLEANUP | removal if we haven't booted a machine
-        azure_rm_networkinterface:
-          resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
-          state: absent
-        with_items:
-          - "{{ project }}_{{ application }}_internal"
-          - "{{ project }}_{{ application }}_external"
-
+        with_sequence: count={{ count }}
+      
       - name: OPENVPN CLEANUP | deleting public ips
         azure_rm_publicipaddress:
           resource_group: "{{ specified_resourcegroup.name }}"
-          name: "{{ item }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_external_ip"
           state: absent
-        with_items:
-          - "{{ project }}_{{ application }}_internal_ip"
-          - "{{ project }}_{{ application }}_external_ip"
-
-      - name: OPENVPN OVERLAY | deleting all security groups
+        with_sequence: count={{ count }}
+        
+      - name: OPENVPN CLEANUP | removing external NICs
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_external"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: OPENVPN CLEANUP | removing internal NICs
+        azure_rm_networkinterface:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_internal"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: OPENVPN OVERLAY | deleting default external security group
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_external"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: OPENVPN OVERLAY | deleting default internal security group
+        azure_rm_securitygroup:
+          resource_group: "{{ specified_resourcegroup.name }}"
+          name: "{{ project }}_{{ application }}_{{ item }}_internal"
+          state: absent
+        with_sequence: count={{ count }}
+      
+      - name: OPENVPN OVERLAY | deleting datanexus specific security groups
         azure_rm_securitygroup:
           resource_group: "{{ specified_resourcegroup.name }}"
           name: "{{ item }}"
@@ -136,7 +156,4 @@
         with_items:
           - "dnsg_{{ project }}_ssh_public_external"
           - "dnsg_{{ project }}_closed"
-          # these are default Azure security groups
-          - "{{ project }}_{{ application }}_external"
-          - "{{ project }}_{{ application }}_internal"
       when: cloud == 'azure'
