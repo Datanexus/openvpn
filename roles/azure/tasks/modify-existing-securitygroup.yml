@@ -1,16 +1,8 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
 # create Azure openvpn security group rules
----
-  
-  
-- name: OPENVPN OVERLAY AZURE | removing existing security group because updating in place works poorly
-  azure_rm_securitygroup:
-    resource_group: "{{ specified_resourcegroup.name }}"
-    name: "dnsg_{{ project }}_ssh_public_external"
-    state: absent
-      
-- name: OPENVPN OVERLAY AZURE | creating new dnsg_{{ project }}_ssh_public_external rules for OpenVPN
+---       
+- name: OPENVPN OVERLAY AZURE | updating dnsg_{{ project }}_ssh_public_external rules for OpenVPN
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
     name: "dnsg_{{ project }}_ssh_public_external"

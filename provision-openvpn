@@ -34,7 +34,7 @@
           name: azure
           tasks_from: discover-vm
       when: cloud == 'azure'
-
+      
 - name: OPENVPN OVERLAY | applying {{ cloud }} security rules
   tags:
     - openvpn
@@ -73,10 +73,8 @@
     - include_vars: "{{ configuration }}"
       when: configuration is defined
       
-    # would change this for making every jumphost an openvpn server
     - include_role:
         name: openvpn
-      run_once: true
       
 - name: OPENVPN OVERLAY | reconfiguring ssh for platform access via vpn
   tags:
@@ -111,12 +109,11 @@
           name: azure
           tasks_from: modify-existing-securitygroup
       when: cloud == 'azure'
-      
-    - name: OPENVPN ENCRYPTION OVERLAY | reconfiguring ssh for platform access via vpn
+    
+    - name: OPENVPN OVERLAY | reconfiguring ssh for platform access via vpn
       lineinfile:
-        dest: "{{ item }}"
-        regexp: "    Hostname {{ groups['openvpn'].0 }}"
-        line: "    Hostname {{ groups['openvpn_private'].0 }}"
+        dest: "{{ ansible_env.HOME }}/.ssh/config"
+        regexp: "    Hostname {{ item }}"
+        line: "    Hostname {{ hostvars[item].ansible_default_ipv4.address }}"
         state: "{{ item.state | default('present') }}"
-      with_items:
-        - "{{ ansible_env.HOME }}/.ssh/config"
+      with_items: "{{ groups[application] }}"
