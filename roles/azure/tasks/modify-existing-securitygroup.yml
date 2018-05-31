@@ -1,7 +1,8 @@
 # (c) 2016 DataNexus Inc.  All Rights Reserved.
 #
 # create Azure openvpn security group rules
----       
+---
+# when modifying rules, purge existing and bump existing priority by one -- it's the only way it works
 - name: OPENVPN OVERLAY AZURE | updating dnsg_{{ project }}_ssh_public_external rules for OpenVPN
   azure_rm_securitygroup:
     resource_group: "{{ specified_resourcegroup.name }}"
