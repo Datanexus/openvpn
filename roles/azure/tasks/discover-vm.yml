@@ -14,13 +14,14 @@
 - name: OPENVPN OVERLAY AZURE | discovering {{ hostapplication }}
   azure_rm_publicipaddress_facts:
     resource_group: "{{ specified_resourcegroup.name }}"
-    name: "{{ project }}_{{ hostapplication }}_{{ item }}_external_ip"
+    name: "{{ project }}_{{ hostapplication }}_{{ ec2_tag_Role | default('none') }}_{{ cluster | default('none') }}_{{ dataflow | default('none') }}_{{ item }}_external_ip"
   with_sequence: count={{ count | default (1) }}
   register: found_jumphosts
   
 - name: OPENVPN OVERLAY AZURE | adding all {{ hostapplication }} instances to {{ application }} host group
   add_host: hostname="{{ item.ansible_facts.azure_publicipaddresses.0.properties.ipAddress }}" groupname="{{ application }}" ansible_user="{{ user }}" ansible_ssh_private_key_file="{{ key_path }}/{{ cloud }}-{{ region }}-{{ project }}-{{ hostapplication }}-{{ domain }}-private-key.pem"
-  with_items: "{{  found_jumphosts.results }}"
+  when: item.ansible_facts.azure_publicipaddresses | length > 0
+  with_items: "{{ found_jumphosts.results }}"
 
 # we need to grab the external public DHCP address to modify the ssh/config at the end
 - name: OPENVPN OVERLAY | discovering {{ hostapplication }}
