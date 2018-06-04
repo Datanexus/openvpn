@@ -16,10 +16,10 @@ fi
 
 # likely called by the orchestrator to just pass through everything
 if [ $# -eq 4 ] && [ "$1" = "-e" ]; then
-  ./provision-openvpn "$3" "$4" "$1" "$2"
+  ./provision-openvpn "$1" "$2" "$3" "$4"
 # deploy postgresql as an overlay or a full deployment via configuration file
 elif [ $# -eq 8 ] && [ -d "$8" ]; then
   ./provision-openvpn --tags "$application" -e "tenant=$1 project=$2 cloud=$3 region=$4 domain=$5 cluster=$6 user=$7 tenant_config_path=$8"
-elif [ $# -eq 2 ] && [ -f "$2" ] && [ -s "$2" ]; then
-  ./provision-openvpn --tags "vm,$application" -e "configuration=$1 certificate=$2" 
+elif [ $# -eq 1 ] && [ -f "$1" ] && [ -s "$1" ]; then
+  ./provision-openvpn --tags "vm,$application" -e "configuration=$1" 
 fi
