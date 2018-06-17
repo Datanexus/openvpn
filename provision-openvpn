@@ -26,6 +26,7 @@
       when: cloud == 'aws'
     
     - block:
+      
       - include_role:
           name: azure
           tasks_from: discover-resourcegroup
@@ -33,6 +34,7 @@
       - include_role:
           name: azure
           tasks_from: discover-vm
+
       when: cloud == 'azure'
       
 - name: OPENVPN OVERLAY | applying {{ cloud }} security rules
